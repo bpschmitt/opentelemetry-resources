@@ -13,14 +13,13 @@ columns 1
     Loadbalancer_Collector
   end
   space
-  space
-  space
   block:ID
     Backend_Collector_A
     Backend_Collector_B
     Backend_Collector_C
   end
-  NR(("New Relic"))
+  space
+  NR("New Relic")
 
   
   Upstream --> LB
