@@ -22,7 +22,7 @@ columns 1
   NR("New Relic")
 
   
-  Upstream --> LB
+  Upstream --"Spans"--> LB
   LB --> Backend_Collector_A
   LB --> Backend_Collector_B
   LB --> Backend_Collector_C
