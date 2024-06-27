@@ -7,9 +7,7 @@ This is based on the K8s Resolver [example](https://github.com/open-telemetry/op
 ```mermaid
 block-beta
 columns 1
-  block:Upstream
-   Upstream("Upstream_Collector(s)")
-  end
+  Upstream("Upstream_Collector(s)")
   space
   block:LB
     Loadbalancer_Collector
@@ -29,9 +27,9 @@ columns 1
   LB --> Backend_Collector_A
   LB --> Backend_Collector_B
   LB --> Backend_Collector_C
-  Backend_Collector_A -- "Sampling" --> NR
-  Backend_Collector_B -- "Sampling" --> NR
-  Backend_Collector_C -- "Sampling" --> NR
+  Backend_Collector_A --"Sampling"--> NR
+  Backend_Collector_B --"Sampling"--> NR
+  Backend_Collector_C --"Sampling"--> NR
 
   style Upstream fill:#000,stroke:#f66,stroke-width:2px,color:#fff,stroke-dasharray: 5 5
   style NR fill:#000,stroke:#f66,stroke-width:2px,color:#fff,stroke-dasharray: 5 5

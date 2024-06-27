@@ -93,24 +93,6 @@ spec:
           exporters:
             - otlp
             - debug
-
-        # traces:
-        #   receivers: [otlp]
-        #   processors:
-        #     [memory_limiter, resource, resourcedetection, k8sattributes, batch]
-        #   exporters: [spanmetrics, otlp]
-        # metrics:
-        #   receivers: [spanmetrics, hostmetrics, otlp]
-        #   processors:
-        #     [
-        #       memory_limiter,
-        #       resource,
-        #       resourcedetection,
-        #       k8sattributes,
-        #       cumulativetodelta,
-        #       batch,
-        #     ]
-        #   exporters: [otlp]
   env:
   - name: NEW_RELIC_LICENSE_KEY
     valueFrom:
