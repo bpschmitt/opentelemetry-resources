@@ -70,7 +70,7 @@ Set up the load balancer and collector gateway.
 kubectl apply -f loadbalancing.yaml -n test
 ```
 
-The current config in [loadbalancing.yaml](./loadbalancing.yaml) is set up to only send traces containing errors but could easily be modified to behave differently.
+The current config in [loadbalancing.yaml](./loadbalancing.yaml) is set up to sample 25% of traces but could easily be modified to behave differently (e.g. also ship traces containing errors).
 
 ```
 ...
@@ -81,16 +81,16 @@ processors:
     expected_new_traces_per_sec: 10
     policies:
       [
-        {
-          name: errors-policy,
-          type: status_code,
-          status_code: { status_codes: [ERROR] },
-        },
         # {
-        #   name: randomized-policy,
-        #   type: probabilistic,
-        #   probabilistic: { sampling_percentage: 25 },
+        #   name: errors-policy,
+        #   type: status_code,
+        #   status_code: { status_codes: [ERROR] },
         # },
+        {
+          name: randomized-policy,
+          type: probabilistic,
+          probabilistic: { sampling_percentage: 25 },
+        },
       ]
 ...
 ```
