@@ -56,7 +56,7 @@ spec:
     processors:
 
     connectors:
-      spanmetrics/default:
+      spanmetrics:
 
     exporters:
       debug:
@@ -83,12 +83,19 @@ spec:
           processors: []
           exporters:
             - loadbalancing
-            - spanmetrics/default
+            - spanmetrics
             - debug
         metrics:
           receivers:
             - otlp
-            - spanmetrics/default
+            - spanmetrics
+          processors: []
+          exporters:
+            - otlp
+            - debug
+        logs:
+          receivers:
+            - otlp
           processors: []
           exporters:
             - otlp
@@ -121,16 +128,16 @@ spec:
         expected_new_traces_per_sec: 10
         policies:
           [
-            {
-              name: errors-policy,
-              type: status_code,
-              status_code: { status_codes: [ERROR] },
-            },
             # {
-            #   name: randomized-policy,
-            #   type: probabilistic,
-            #   probabilistic: { sampling_percentage: 25 },
+            #   name: errors-policy,
+            #   type: status_code,
+            #   status_code: { status_codes: [ERROR] },
             # },
+            {
+              name: randomized-policy,
+              type: probabilistic,
+              probabilistic: { sampling_percentage: 25 },
+            },
           ]
 
     exporters:
@@ -147,10 +154,18 @@ spec:
         traces:
           receivers:
             - otlp
+          # add tail_sampling to enable sampling
           processors: [tail_sampling]
           exporters:
             - debug
             - otlp
+        logs:
+          receivers:
+            - otlp
+          processors: []
+          exporters:
+          - debug
+          - otlp
   env:
   - name: NEW_RELIC_LICENSE_KEY
     valueFrom:
