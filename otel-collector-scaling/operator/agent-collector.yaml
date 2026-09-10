@@ -1,0 +1,40 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: otel-scaling
+---
+apiVersion: opentelemetry.io/v1beta1
+kind: OpenTelemetryCollector
+metadata:
+  name: agent
+  namespace: otel-scaling
+spec:
+  mode: deployment
+  replicas: 1
+  image: docker.io/otel/opentelemetry-collector-contrib:latest
+  config:
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+          http:
+            endpoint: 0.0.0.0:4318
+
+    processors:
+      batch: {}
+
+    exporters:
+      debug: {}
+      otlp:
+        endpoint: "gateway-collector-headless.otel-scaling.svc:4317"
+        tls:
+          insecure: true
+        balancer_name: round_robin
+
+    service:
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [batch]
+          exporters: [otlp, debug]

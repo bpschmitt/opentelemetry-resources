@@ -1,0 +1,44 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: telemetrygen-ramp
+  namespace: otel-scaling
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      # The telemetrygen image has no shell (scratch/distroless), so the
+      # ramp can't be a single `sh -c` script chaining invocations. Each
+      # stage is its own container instead — initContainers run sequentially
+      # by Kubernetes, then the last stage runs as the main container so the
+      # Job's own completion tracks the final (peak) stage.
+      initContainers:
+        - name: stage-1-warmup
+          image: ghcr.io/open-telemetry/opentelemetry-collector-contrib/telemetrygen:latest
+          args:
+            - traces
+            - --otlp-insecure
+            - --otlp-endpoint=agent-collector.otel-scaling.svc:4317
+            - --duration=60s
+            - --rate=5
+            - --workers=1
+        - name: stage-2-ramp
+          image: ghcr.io/open-telemetry/opentelemetry-collector-contrib/telemetrygen:latest
+          args:
+            - traces
+            - --otlp-insecure
+            - --otlp-endpoint=agent-collector.otel-scaling.svc:4317
+            - --duration=60s
+            - --rate=50
+            - --workers=4
+      containers:
+        - name: stage-3-peak
+          image: ghcr.io/open-telemetry/opentelemetry-collector-contrib/telemetrygen:latest
+          args:
+            - traces
+            - --otlp-insecure
+            - --otlp-endpoint=agent-collector.otel-scaling.svc:4317
+            - --duration=120s
+            - --rate=200
+            - --workers=8

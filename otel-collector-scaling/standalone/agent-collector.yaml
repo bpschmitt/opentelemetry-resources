@@ -1,0 +1,80 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: agent-collector-config
+  namespace: otel-scaling
+data:
+  collector.yaml: |
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+          http:
+            endpoint: 0.0.0.0:4318
+
+    processors:
+      batch: {}
+
+    exporters:
+      debug: {}
+      otlp:
+        endpoint: "gateway-collector.otel-scaling.svc:4317"
+        tls:
+          insecure: true
+        balancer_name: round_robin
+
+    service:
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [batch]
+          exporters: [otlp, debug]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agent-collector
+  namespace: otel-scaling
+  labels:
+    app: agent-collector
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: agent-collector
+  template:
+    metadata:
+      labels:
+        app: agent-collector
+    spec:
+      containers:
+        - name: collector
+          image: docker.io/otel/opentelemetry-collector-contrib:latest
+          args: ["--config=/etc/otel/collector.yaml"]
+          ports:
+            - containerPort: 4317
+            - containerPort: 4318
+          volumeMounts:
+            - name: config
+              mountPath: /etc/otel
+      volumes:
+        - name: config
+          configMap:
+            name: agent-collector-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: agent-collector
+  namespace: otel-scaling
+spec:
+  selector:
+    app: agent-collector
+  ports:
+    - name: otlp-grpc
+      port: 4317
+      targetPort: 4317
+    - name: otlp-http
+      port: 4318
+      targetPort: 4318

@@ -1,0 +1,97 @@
+apiVersion: opentelemetry.io/v1beta1
+kind: OpenTelemetryCollector
+metadata:
+  name: gateway
+  namespace: otel-scaling
+spec:
+  mode: deployment
+  image: docker.io/otel/opentelemetry-collector-contrib:latest
+
+  # Requests/limits are deliberately small so a modest load from telemetrygen
+  # is enough to push CPU utilization over the autoscaler target below.
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+  # The OTel Operator manages a real Kubernetes HorizontalPodAutoscaler for
+  # this Collector based on this block. No separate HPA manifest needed.
+  autoscaler:
+    minReplicas: 1
+    maxReplicas: 5
+    targetCPUUtilization: 50
+    targetMemoryUtilization: 60
+
+  config:
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+          http:
+            endpoint: 0.0.0.0:4318
+
+    processors:
+      batch: {}
+      # Stamps which gateway pod handled each span, so New Relic can facet/
+      # group by k8s.pod.name to visualize the HPA spreading traffic across
+      # gateway replicas. POD_NAME comes from the Downward API env var below.
+      resource:
+        attributes:
+          - key: k8s.pod.name
+            value: ${env:POD_NAME}
+            action: upsert
+
+    exporters:
+      debug: {}
+      otlp:
+        endpoint: "otlp.nr-data.net:4317"
+        tls:
+          insecure: false
+        headers:
+          api-key: ${NEW_RELIC_LICENSE_KEY}
+
+    service:
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [resource, batch]
+          exporters: [otlp, debug]
+
+  env:
+    - name: NEW_RELIC_LICENSE_KEY
+      valueFrom:
+        secretKeyRef:
+          name: newrelic-license-key
+          key: licensekey
+    - name: POD_NAME
+      valueFrom:
+        fieldRef:
+          fieldPath: metadata.name
+---
+# The Operator's own generated Service (gateway-collector) is a normal
+# ClusterIP, so DNS only ever resolves to one VIP and the agent's gRPC
+# connection pins to a single gateway pod regardless of HPA scale-out.
+# This headless Service resolves to every gateway pod IP instead, so the
+# agent's balancer_name: round_robin exporter config (see
+# agent-collector.yaml) can actually spread RPCs across all of them.
+# Selector matches the pod labels the Operator applies to Collectors it
+# manages — see `kubectl get pods -n otel-scaling --show-labels`.
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway-collector-headless
+  namespace: otel-scaling
+spec:
+  clusterIP: None
+  selector:
+    app.kubernetes.io/instance: otel-scaling.gateway
+    app.kubernetes.io/managed-by: opentelemetry-operator
+    app.kubernetes.io/component: opentelemetry-collector
+  ports:
+    - name: otlp-grpc
+      port: 4317
+      targetPort: 4317

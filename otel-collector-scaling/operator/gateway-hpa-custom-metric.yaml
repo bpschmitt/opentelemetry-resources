@@ -1,0 +1,41 @@
+# OPTIONAL — "going further" comparison, not required for the core demo.
+#
+# CPU/memory-based HPA (see gateway-collector.yaml) is easy but imprecise:
+# a Collector can be CPU-idle while its export queue is backing up (slow
+# downstream, network blip) and about to start dropping data — CPU% alone
+# won't tell the autoscaler that. A production setup often scales instead on
+# a signal the Collector emits about itself, e.g. queue size or refused
+# spans, scraped via Prometheus and surfaced to Kubernetes' external metrics
+# API through prometheus-adapter.
+#
+# This file assumes you already have prometheus-adapter (or KEDA) installed
+# and a Prometheus scraping the Collector's `/metrics` endpoint (port 8888
+# on the gateway Collector Service) — that's real cluster infra outside the
+# scope of this demo's prerequisites, so it's not applied by default.
+#
+# Once wired, replace the CPU/memory autoscaler above with a metric-backed
+# HPA that targets something like the queue size on the batch/exporter
+# helper queue, exposed as otelcol_exporter_queue_size:
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: gateway-collector-custom-metric
+  namespace: otel-scaling
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: gateway-collector
+  minReplicas: 1
+  maxReplicas: 5
+  metrics:
+    - type: External
+      external:
+        metric:
+          name: otelcol_exporter_queue_size
+          selector:
+            matchLabels:
+              service: gateway-collector
+        target:
+          type: AverageValue
+          averageValue: "50"

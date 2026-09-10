@@ -1,0 +1,28 @@
+# With no OTel Operator to generate one, the HPA is a plain Kubernetes
+# resource pointed at the raw Deployment in gateway-collector.yaml.
+# Same target/min/max as the operator/ variant's spec.autoscaler block.
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: gateway-collector
+  namespace: otel-scaling
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: gateway-collector
+  minReplicas: 1
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 50
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 60

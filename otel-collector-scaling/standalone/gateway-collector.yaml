@@ -1,0 +1,116 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gateway-collector-config
+  namespace: otel-scaling
+data:
+  collector.yaml: |
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+          http:
+            endpoint: 0.0.0.0:4318
+
+    processors:
+      batch: {}
+      # Stamps which gateway pod handled each span, so New Relic can facet/
+      # group by k8s.pod.name to visualize the HPA spreading traffic across
+      # gateway replicas. POD_NAME comes from the Downward API env var below.
+      resource:
+        attributes:
+          - key: k8s.pod.name
+            value: ${env:POD_NAME}
+            action: upsert
+
+    exporters:
+      debug: {}
+      otlp:
+        endpoint: "otlp.nr-data.net:4317"
+        tls:
+          insecure: false
+        headers:
+          api-key: ${NEW_RELIC_LICENSE_KEY}
+
+    service:
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [resource, batch]
+          exporters: [otlp, debug]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway-collector
+  namespace: otel-scaling
+  labels:
+    app: gateway-collector
+spec:
+  # No `replicas` pinned — the HPA in gateway-hpa.yaml owns this field once applied.
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gateway-collector
+  template:
+    metadata:
+      labels:
+        app: gateway-collector
+    spec:
+      containers:
+        - name: collector
+          image: docker.io/otel/opentelemetry-collector-contrib:latest
+          args: ["--config=/etc/otel/collector.yaml"]
+          env:
+            - name: NEW_RELIC_LICENSE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: newrelic-license-key
+                  key: licensekey
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          ports:
+            - containerPort: 4317
+            - containerPort: 4318
+          # requests/limits are required for HPA to compute a utilization
+          # percentage, and are deliberately small so a modest load from
+          # telemetrygen is enough to trigger a scale-up.
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+          volumeMounts:
+            - name: config
+              mountPath: /etc/otel
+      volumes:
+        - name: config
+          configMap:
+            name: gateway-collector-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway-collector
+  namespace: otel-scaling
+spec:
+  # Headless: DNS returns every pod IP instead of one Service VIP, so the
+  # agent's gRPC client (balancer_name: round_robin) can actually spread
+  # RPCs across all gateway pods as the HPA scales them out. A normal
+  # ClusterIP would only ever resolve to one IP, pinning each agent's
+  # long-lived gRPC connection to a single gateway pod regardless of scale.
+  clusterIP: None
+  selector:
+    app: gateway-collector
+  ports:
+    - name: otlp-grpc
+      port: 4317
+      targetPort: 4317
+    - name: otlp-http
+      port: 4318
+      targetPort: 4318
