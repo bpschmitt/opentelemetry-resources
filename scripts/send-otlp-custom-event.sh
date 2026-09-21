@@ -19,12 +19,18 @@
 #   # override defaults:
 #   EVENT_TYPE=MyCustomEvent NR_REGION=EU ./send-otlp-custom-event.sh
 #
+# The record also sets the top-level `eventName` field per the OTel Events
+# semantic conventions (https://opentelemetry.io/docs/specs/semconv/general/events/).
+# eventName and newrelic.event.type are independent and both sent: eventName
+# names the OTel event structure, newrelic.event.type drives New Relic's
+# custom-event transform.
+#
 set -euo pipefail
 
 # ----- config (override via environment) -------------------------------------
 : "${NEW_RELIC_LICENSE_KEY:?Set NEW_RELIC_LICENSE_KEY to your New Relic ingest license key}"
 
-EVENT_TYPE="${EVENT_TYPE:-OtelCustomEventTest}"   # becomes the NRQL FROM <type>
+EVENT_TYPE="${EVENT_TYPE:-OtelCustomEventTest}"   # becomes the NRQL FROM <type>; also used as LogRecord.eventName
 SERVICE_NAME="${SERVICE_NAME:-otlp-custom-event-test}"
 NR_REGION="${NR_REGION:-US}"                       # US | EU | JP | FEDRAMP
 
@@ -73,6 +79,7 @@ read -r -d '' PAYLOAD <<JSON || true
           "scope": { "name": "nr-custom-event.sh" },
           "logRecords": [
             {
+              "eventName": "${EVENT_TYPE}",
               "timeUnixNano": "${TS_NANO}",
               "observedTimeUnixNano": "${TS_NANO}",
               "severityNumber": 9,
@@ -98,6 +105,7 @@ JSON
 
 # ----- send -------------------------------------------------------------------
 echo "POST  ${LOGS_URL}"
+echo "eventName  : ${EVENT_TYPE}"
 echo "event.type : ${EVENT_TYPE}"
 echo "run.id     : ${RUN_ID}"
 echo
