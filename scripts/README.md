@@ -45,6 +45,50 @@ EVENT_TYPE=MyCustomEvent NR_REGION=EU ./send-otlp-custom-event.sh
 | `NR_REGION` | `US` | `US` \| `EU` \| `JP` \| `FEDRAMP` — picks OTLP endpoint |
 | `OTLP_ENDPOINT` | *(derived from region)* | Override to bypass region lookup |
 
+### Example log record payload
+
+With defaults, the script POSTs this OTLP/JSON body to `/v1/logs` (timestamps and `run.id` vary per run):
+
+```json
+{
+  "resourceLogs": [
+    {
+      "resource": {
+        "attributes": [
+          { "key": "service.name", "value": { "stringValue": "otlp-custom-event-test" } }
+        ]
+      },
+      "scopeLogs": [
+        {
+          "scope": { "name": "nr-custom-event.sh" },
+          "logRecords": [
+            {
+              "eventName": "OtelCustomEventTest",
+              "timeUnixNano": "1730000000000000000",
+              "observedTimeUnixNano": "1730000000000000000",
+              "severityNumber": 9,
+              "severityText": "INFO",
+              "body": { "stringValue": "custom event test emitted from send-otlp-custom-event.sh" },
+              "attributes": [
+                { "key": "newrelic.event.type", "value": { "stringValue": "OtelCustomEventTest" } },
+                { "key": "run.id", "value": { "stringValue": "run-1730000000-12345" } },
+                { "key": "environment", "value": { "stringValue": "test" } },
+                { "key": "user.id", "value": { "stringValue": "12345" } },
+                { "key": "order.total", "value": { "doubleValue": 42.50 } },
+                { "key": "items.count", "value": { "intValue": "3" } },
+                { "key": "is.priority", "value": { "boolValue": true } }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+```
+
+`eventName` and `newrelic.event.type` both track `EVENT_TYPE`; every other attribute is fixed sample data illustrating the four OTLP `AnyValue` types (`stringValue`, `doubleValue`, `intValue`, `boolValue`).
+
 ### Verify
 
 Script prints HTTP response and a run ID. Query in New Relic:
