@@ -76,7 +76,7 @@ read -r -d '' PAYLOAD <<JSON || true
       },
       "scopeLogs": [
         {
-          "scope": { "name": "nr-custom-event.sh" },
+          "scope": { "name": "send-otlp-custom-event.sh" },
           "logRecords": [
             {
               "eventName": "${EVENT_TYPE}",

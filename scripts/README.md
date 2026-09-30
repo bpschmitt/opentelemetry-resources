@@ -60,7 +60,7 @@ With defaults, the script POSTs this OTLP/JSON body to `/v1/logs` (timestamps an
       },
       "scopeLogs": [
         {
-          "scope": { "name": "nr-custom-event.sh" },
+          "scope": { "name": "send-otlp-custom-event.sh" },
           "logRecords": [
             {
               "eventName": "OtelCustomEventTest",
