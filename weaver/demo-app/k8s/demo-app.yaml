@@ -1,5 +1,6 @@
 # Always-on weaver demo app. Build and load the image first, e.g.:
-#   docker build -t weaver-orders-demo:latest weaver/demo-app
+#   docker buildx build --platform linux/amd64,linux/arm64 -t <registry>/weaver-orders-demo:latest --push weaver/demo-app
+# then set the image below to <registry>/weaver-orders-demo:latest
 #   kubectl create secret generic newrelic-license --from-literal=license-key="$NEW_RELIC_LICENSE_KEY"
 apiVersion: apps/v1
 kind: Deployment
@@ -20,7 +21,7 @@ spec:
       containers:
         - name: orders-demo
           image: weaver-orders-demo:latest
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           args: ["--mode", "demo"]
           env:
             - name: OTEL_SERVICE_NAME

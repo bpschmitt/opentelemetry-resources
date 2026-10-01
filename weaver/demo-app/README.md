@@ -57,9 +57,16 @@ python demo-app/app.py --mode demo
 **Docker:**
 
 ```
-docker build -t weaver-orders-demo:latest demo-app
-docker run --rm -e NEW_RELIC_LICENSE_KEY weaver-orders-demo:latest
+# Multi-arch (arm64 + amd64) build, pushed to a registry you can pull from
+docker buildx build --platform linux/amd64,linux/arm64 \
+  -t <registry>/weaver-orders-demo:latest --push demo-app
+
+docker run --rm -e NEW_RELIC_LICENSE_KEY <registry>/weaver-orders-demo:latest
 ```
+
+A multi-platform image can't be loaded into the local Docker image store, so `--push` is required. For a quick local-only image on your own architecture, use `docker build -t weaver-orders-demo:latest demo-app`. To run the amd64 image on an Apple Silicon Mac, add `--platform linux/amd64` to `docker run` (slower, runs under emulation).
+
+If `docker buildx build` complains about the driver, create a builder once: `docker buildx create --use`.
 
 **Kubernetes:**
 
