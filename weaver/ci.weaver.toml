@@ -1,0 +1,5 @@
+# Same live-check settings as .weaver.toml, with paths relative to the repo
+# root (where the GitHub Actions job runs). Keep the two files in sync.
+[live-check]
+advice_policies = "weaver/policies"
+advice_data = "weaver/policies/data/**/*.json"
