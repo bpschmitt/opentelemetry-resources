@@ -8,9 +8,7 @@
 #   ./apply.sh            # create rules
 #   ./apply.sh --dry-run  # print each rule's NRQL and the GraphQL payload only
 #
-# NOTE: the entityManagement*Scorecard* mutation shapes below have not been
-# verified against the live NerdGraph schema. Check them in the NerdGraph
-# explorer (api.newrelic.com/graphiql) if a call is rejected.
+# Mutation shapes follow docs.newrelic.com/docs/apis/nerdgraph/examples/nerdgraph-scorecards-tutorial.
 set -euo pipefail
 
 DRY_RUN=false
@@ -32,11 +30,12 @@ SERVICE="$(jq -r .service "$CFG")"
 SCORECARD_NAME="$(jq -r .name "$CFG")"
 SCORECARD_DESC="$(jq -r .description "$CFG")"
 
-# Rule NRQL: percent of the service's telemetry that is compliant, restricted
-# to the entity being scored. Passes when the result is >= threshold.
+# Rule NRQL: Scorecard rules are evaluated per entity and must return a 0/1
+# `score` faceted by `entityGuid`. Score is 1 when the percent of the service's
+# telemetry that is compliant is >= the rule's threshold.
 rule_nrql() {
   jq -r --argjson i "$1" '.rules[$i] |
-    "FROM \(.from) SELECT percentage(count(*), WHERE \(.compliant)) AS compliance WHERE entity.name = '"'$SERVICE'"' AND \(.where)"' "$CFG"
+    "FROM \(.from) SELECT if(percentage(count(*), WHERE \(.compliant)) >= \(.threshold), 1, 0) AS '"'score'"' WHERE entity.name = '"'$SERVICE'"' AND \(.where) FACET entity.guid AS '"'entityGuid'"' LIMIT MAX SINCE 1 day ago"' "$CFG"
 }
 
 gql() {
@@ -49,12 +48,34 @@ gql() {
     -d "$(jq -n --arg q "$query" --argjson v "$variables" '{query:$q,variables:$v}')"
 }
 
+# Scorecard/rule scope is the organization.
+if $DRY_RUN; then
+  ORG_ID="DRY-RUN-ORG-ID"
+else
+  ORG_ID="$(gql 'query { actor { organization { id } } }' '{}' | jq -r '.data.actor.organization.id // empty')"
+  [[ -n "$ORG_ID" ]] || { echo "could not fetch organization id (check API key)" >&2; exit 1; }
+fi
+
 RULE_MUTATION='mutation($rule: EntityManagementScorecardRuleEntityCreateInput!) {
   entityManagementCreateScorecardRule(scorecardRuleEntity: $rule) { entity { id } }
 }'
 SCORECARD_MUTATION='mutation($sc: EntityManagementScorecardEntityCreateInput!) {
-  entityManagementCreateScorecard(scorecardEntity: $sc) { entity { id } }
+  entityManagementCreateScorecard(scorecardEntity: $sc) { entity { id rules { id } } }
 }'
+ADD_MUTATION='mutation($cid: ID!, $ids: [ID!]!) {
+  entityManagementAddCollectionMembers(collectionId: $cid, ids: $ids)
+}'
+
+# Create the scorecard first; rules are attached after creation.
+echo "== scorecard: $SCORECARD_NAME"
+VARS="$(jq -n --arg n "$SCORECARD_NAME" --arg d "$SCORECARD_DESC" --arg o "$ORG_ID" \
+  '{sc:{name:$n,description:$d,scope:{type:"ORGANIZATION",id:$o},
+    progressLevels:[{id:"BASIC",name:"Basic",description:"Semconv compliance",hexColorCode:"#11845C"}]}}')"
+RESP="$(gql "$SCORECARD_MUTATION" "$VARS")"
+echo "$RESP" | jq -c .
+# Rules are added to the scorecard's rules collection, not the scorecard itself.
+SC_ID="$(echo "$RESP" | jq -r '.data.entityManagementCreateScorecard.entity.rules.id // empty')"
+if ! $DRY_RUN && [[ -z "$SC_ID" ]]; then echo "scorecard create failed" >&2; exit 1; fi
 
 RULE_IDS=()
 COUNT="$(jq '.rules | length' "$CFG")"
@@ -63,15 +84,15 @@ for ((i = 0; i < COUNT; i++)); do
   echo "== rule: $NAME"
   echo "   NRQL: $(rule_nrql "$i")"
   VARS="$(jq -n --arg n "$NAME" --arg d "$(jq -r ".rules[$i].description" "$CFG")" \
-    --arg q "$(rule_nrql "$i")" --argjson t "$(jq ".rules[$i].threshold" "$CFG")" --arg a "$ACCOUNT_ID" \
-    '{rule:{name:$n,description:$d,enabled:true,nrqlEngine:{accounts:[($a|tonumber)],query:$q}, threshold:$t}}')"
+    --arg q "$(rule_nrql "$i")" --arg a "$ACCOUNT_ID" --arg o "$ORG_ID" \
+    '{rule:{name:$n,description:$d,enabled:true,progressLevel:"BASIC",runInterval:60,
+      nrqlEngine:{accounts:[($a|tonumber)],query:$q},scope:{type:"ORGANIZATION",id:$o}}}')"
   RESP="$(gql "$RULE_MUTATION" "$VARS")"
   echo "$RESP" | jq -c .
-  $DRY_RUN || RULE_IDS+=("$(echo "$RESP" | jq -r '.data.entityManagementCreateScorecardRule.entity.id')")
+  $DRY_RUN || RULE_IDS+=("$(echo "$RESP" | jq -r '.data.entityManagementCreateScorecardRule.entity.id // empty')")
 done
 
-echo "== scorecard: $SCORECARD_NAME"
-RULES_JSON="$(printf '%s\n' "${RULE_IDS[@]:-}" | jq -R . | jq -s 'map(select(length>0))')"
-VARS="$(jq -n --arg n "$SCORECARD_NAME" --arg d "$SCORECARD_DESC" --argjson r "$RULES_JSON" \
-  '{sc:{name:$n,description:$d,rules:($r|map({id:.}))}}')"
-gql "$SCORECARD_MUTATION" "$VARS" | jq -c .
+echo "== attach rules to scorecard"
+IDS_JSON="$(printf '%s\n' "${RULE_IDS[@]:-}" | jq -R . | jq -s 'map(select(length>0))')"
+VARS="$(jq -n --arg c "${SC_ID:-DRY-RUN}" --argjson r "$IDS_JSON" '{cid:$c,ids:$r}')"
+gql "$ADD_MUTATION" "$VARS" | jq -c .
