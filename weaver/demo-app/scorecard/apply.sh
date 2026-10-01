@@ -26,16 +26,19 @@ ACCOUNT_ID="${NEW_RELIC_ACCOUNT_ID:-0}"
 ENDPOINT="https://api.newrelic.com/graphql"
 [[ "${NEW_RELIC_REGION:-US}" == "EU" ]] && ENDPOINT="https://api.eu.newrelic.com/graphql"
 
-SERVICE="$(jq -r .service "$CFG")"
+# Comma-separated, single-quoted list for NRQL IN (...), e.g. 'orders-demo','orders-demo-noncompliant'
+SERVICES_NRQL_LIST="$(jq -r '.services | map("'"'"'" + . + "'"'"'") | join(",")' "$CFG")"
 SCORECARD_NAME="$(jq -r .name "$CFG")"
 SCORECARD_DESC="$(jq -r .description "$CFG")"
 
 # Rule NRQL: Scorecard rules are evaluated per entity and must return a 0/1
-# `score` faceted by `entityGuid`. Score is 1 when the percent of the service's
-# telemetry that is compliant is >= the rule's threshold.
+# `score` faceted by `entityGuid`. Score is 1 when the percent of the entity's
+# telemetry that is compliant is >= the rule's threshold. `entity.name IN (...)`
+# covers every service instance in `services`, so a compliant and a
+# non-compliant instance each get their own faceted row.
 rule_nrql() {
   jq -r --argjson i "$1" '.rules[$i] |
-    "FROM \(.from) SELECT if(percentage(count(*), WHERE \(.compliant)) >= \(.threshold), 1, 0) AS '"'score'"' WHERE entity.name = '"'$SERVICE'"' AND \(.where) FACET entity.guid AS '"'entityGuid'"' LIMIT MAX SINCE 1 day ago"' "$CFG"
+    "FROM \(.from) SELECT if(percentage(count(*), WHERE \(.compliant)) >= \(.threshold), 1, 0) AS '"'score'"' WHERE entity.name IN ('"$SERVICES_NRQL_LIST"') AND \(.where) FACET entity.guid AS '"'entityGuid'"' LIMIT MAX SINCE 1 day ago"' "$CFG"
 }
 
 gql() {

@@ -1,7 +1,7 @@
 {
   "name": "Semantic Convention Compliance: orders",
-  "description": "Measures how closely orders-demo telemetry follows the Weaver registry in weaver/model.",
-  "service": "orders-demo",
+  "description": "Measures how closely orders telemetry follows the Weaver registry in weaver/model, faceted per service entity so a healthy and an unhealthy instance show up as separate scorecard rows.",
+  "services": ["orders-demo", "orders-demo-noncompliant"],
   "rules": [
     {
       "name": "orders.checkout spans carry required order.id",

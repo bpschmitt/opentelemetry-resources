@@ -1,35 +1,37 @@
-# Always-on weaver demo app. Build and load the image first, e.g.:
-#   docker buildx build --platform linux/amd64,linux/arm64 -t <registry>/weaver-orders-demo:latest --push weaver/demo-app
-# then set the image below to <registry>/weaver-orders-demo:latest
+# Second instance of the same image, under a different service.name, tuned to
+# be mostly non-compliant so the New Relic scorecard clearly flags it as a
+# distinct, unhealthy entity next to the mostly-compliant orders-demo.
+# Build/push the image exactly as for demo-app.yaml (see ../README.md), then:
 #   kubectl create secret generic newrelic-license --from-literal=license-key="$NEW_RELIC_LICENSE_KEY"
+#   kubectl apply -f demo-app/k8s/demo-app-noncompliant.yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: orders-demo
+  name: orders-demo-noncompliant
   labels:
-    app: orders-demo
+    app: orders-demo-noncompliant
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: orders-demo
+      app: orders-demo-noncompliant
   template:
     metadata:
       labels:
-        app: orders-demo
+        app: orders-demo-noncompliant
     spec:
       containers:
-        - name: orders-demo
+        - name: orders-demo-noncompliant
           image: bpschmitt/weaver-orders-demo:latest
           imagePullPolicy: Always
           args: ["--mode", "demo"]
           env:
             - name: OTEL_SERVICE_NAME
-              value: orders-demo
+              value: orders-demo-noncompliant
             - name: ORDERS_PER_SEC
               value: "2"
             - name: NONCOMPLIANT_RATIO
-              value: "0.15"
+              value: "0.6"
             - name: NEW_RELIC_LICENSE_KEY
               valueFrom:
                 secretKeyRef:

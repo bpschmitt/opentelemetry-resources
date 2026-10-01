@@ -32,7 +32,7 @@ The scorecard then measures the same rules continuously on production-shaped tel
 |---|---|---|
 | `NEW_RELIC_LICENSE_KEY` | | Ingest key. Sends to `otlp.nr-data.net:4317` when no endpoint override is set. |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | | Overrides the destination (e.g. a live-check listener). |
-| `OTEL_SERVICE_NAME` | `orders-demo` | Service name (scorecard is scoped to `orders-demo`). |
+| `OTEL_SERVICE_NAME` | `orders-demo` | Service name. The scorecard scores every name listed in `scorecard/scorecard.json`'s `services` array. |
 | `ORDERS_PER_SEC` | `2` | Average order rate. |
 | `NONCOMPLIANT_RATIO` | `0.15` | Share of orders with a violation. |
 
@@ -75,13 +75,36 @@ kubectl create secret generic newrelic-license --from-literal=license-key="$NEW_
 kubectl apply -f demo-app/k8s/demo-app.yaml
 ```
 
+## Second instance: a mostly non-compliant service
+
+Same image, same registry, a different `service.name` and a much higher `NONCOMPLIANT_RATIO` — so New Relic sees it as its own entity, and the scorecard clearly flags it next to the mostly-compliant `orders-demo`.
+
+**Docker:**
+
+```
+docker run --rm \
+  -e NEW_RELIC_LICENSE_KEY \
+  -e OTEL_SERVICE_NAME=orders-demo-noncompliant \
+  -e NONCOMPLIANT_RATIO=0.6 \
+  <registry>/weaver-orders-demo:latest
+```
+
+**Kubernetes** (reuses the same `newrelic-license` secret as `demo-app.yaml`):
+
+```
+kubectl apply -f demo-app/k8s/demo-app-noncompliant.yaml
+```
+
+[k8s/demo-app-noncompliant.yaml](./k8s/demo-app-noncompliant.yaml) sets `OTEL_SERVICE_NAME=orders-demo-noncompliant` and `NONCOMPLIANT_RATIO=0.6` — everything else (image, resources, mode) is identical to `demo-app.yaml`. With 60% of orders carrying a violation instead of 15%, every scorecard rule below should land well under its threshold for this entity, while `orders-demo` stays mostly green.
+
 ## Scorecard
 
-[scorecard/scorecard.json](./scorecard/scorecard.json) defines seven rules; each computes the percentage of `orders-demo` telemetry that conforms to the registry and passes at its threshold. Example:
+[scorecard/scorecard.json](./scorecard/scorecard.json) defines seven rules; each computes the percentage of telemetry that conforms to the registry and passes at its threshold, **faceted by `entity.guid`** — so `orders-demo` and `orders-demo-noncompliant` each get their own pass/fail score per rule, from the same rule definition. Example:
 
 ```
 FROM Span SELECT percentage(count(*), WHERE `order.total` >= 0) AS compliance
-WHERE entity.name = 'orders-demo' AND name = 'orders.checkout'
+WHERE entity.name IN ('orders-demo', 'orders-demo-noncompliant') AND name = 'orders.checkout'
+FACET entity.guid
 ```
 
 (A string-typed `order.total` fails the numeric comparison, so it counts as non-compliant.)
@@ -92,6 +115,6 @@ scorecard/apply.sh --dry-run    # print NRQL + payloads
 scorecard/apply.sh
 ```
 
-With the default 15% violation ratio, spread over seven violation types, most rules land around 97-98% and the strict 99% ones fail, giving a mixed scorecard. Raise `NONCOMPLIANT_RATIO` to push more rules red.
+With the default 15% violation ratio, spread over seven violation types, `orders-demo` lands around 97-98% per rule and the strict 99% ones fail, giving a mixed scorecard. `orders-demo-noncompliant` runs at 60% and should fail nearly every rule — the two entities side by side are the clearest demonstration of what the scorecard is for.
 
 **Unverified:** the NerdGraph `entityManagement*Scorecard*` mutation shapes in `apply.sh` and the exact NRQL pass semantics were written without access to a New Relic account. Run each NRQL in the query builder first, and check the mutations in the NerdGraph explorer if a call is rejected. The NRQL type check for `order.total` relies on numeric comparison excluding string values; confirm that too.
