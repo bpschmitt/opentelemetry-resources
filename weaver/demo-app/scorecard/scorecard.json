@@ -1,0 +1,63 @@
+{
+  "name": "Semantic Convention Compliance: orders",
+  "description": "Measures how closely orders-demo telemetry follows the Weaver registry in weaver/model.",
+  "service": "orders-demo",
+  "rules": [
+    {
+      "name": "orders.checkout spans carry required order.id",
+      "description": "order.id is required on orders.checkout.",
+      "threshold": 95,
+      "from": "Span",
+      "where": "name = 'orders.checkout'",
+      "compliant": "`order.id` IS NOT NULL"
+    },
+    {
+      "name": "order.total is numeric (double)",
+      "description": "Registry type for order.total is double; strings are non-compliant.",
+      "threshold": 95,
+      "from": "Span",
+      "where": "name = 'orders.checkout'",
+      "compliant": "`order.total` >= 0"
+    },
+    {
+      "name": "order.currency is an ISO 4217 code",
+      "description": "Uppercase ISO 4217 alpha code.",
+      "threshold": 95,
+      "from": "Span",
+      "where": "name = 'orders.checkout'",
+      "compliant": "`order.currency` IN ('USD','EUR','GBP','JPY','CAD')"
+    },
+    {
+      "name": "order.payment_method uses registry enum values",
+      "description": "Must be credit_card, paypal or gift_card.",
+      "threshold": 95,
+      "from": "Span",
+      "where": "name = 'orders.checkout'",
+      "compliant": "`order.payment_method` IN ('credit_card','paypal','gift_card')"
+    },
+    {
+      "name": "No attributes outside the registry",
+      "description": "Stray attributes such as orderId are not defined in the registry.",
+      "threshold": 99,
+      "from": "Span",
+      "where": "name = 'orders.checkout'",
+      "compliant": "`orderId` IS NULL"
+    },
+    {
+      "name": "Only registry span names",
+      "description": "Every span from the service uses a registry-defined name.",
+      "threshold": 99,
+      "from": "Span",
+      "where": "name LIKE 'order%'",
+      "compliant": "name = 'orders.checkout'"
+    },
+    {
+      "name": "orders.checkout.count has string order.currency",
+      "description": "Metric attribute order.currency must be a valid string code.",
+      "threshold": 95,
+      "from": "Metric",
+      "where": "metricName = 'orders.checkout.count'",
+      "compliant": "`order.currency` IN ('USD','EUR','GBP','JPY','CAD')"
+    }
+  ]
+}

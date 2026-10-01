@@ -1,0 +1,49 @@
+name: Weaver Semantic Convention Check
+
+on:
+  pull_request:
+    paths:
+      - "weaver/**"
+      - ".github/workflows/weaver-semconv-check.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  weaver-check:
+    name: Check registry and live-check demo-app
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup Weaver
+        uses: open-telemetry/weaver/.github/actions/setup-weaver@38befce4bc68fe320d20f189465c93835ac20c12  # v0.26.1
+
+      - name: Check semantic convention model
+        run: weaver registry check -r weaver/model --diagnostic-format gh_workflow_command
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install demo-app dependencies
+        run: pip install -r weaver/demo-app/requirements.txt
+
+      - name: Start live-check
+        id: live-check
+        uses: open-telemetry/weaver/.github/actions/weaver-live-check-start@38befce4bc68fe320d20f189465c93835ac20c12  # v0.26.1
+        with:
+          registry: ./weaver/model
+          config: ./weaver/ci.weaver.toml
+
+      - name: Run demo-app (compliant sample) against live-check
+        env:
+          OTEL_EXPORTER_OTLP_ENDPOINT: ${{ steps.live-check.outputs.otlp-grpc-endpoint }}
+        run: python3 weaver/demo-app/app.py --mode live-check --compliant-only
+
+      - name: Stop live-check
+        id: live-check-stop
+        if: always()
+        uses: open-telemetry/weaver/.github/actions/weaver-live-check-stop@38befce4bc68fe320d20f189465c93835ac20c12  # v0.26.1
+        with:
+          fail-on: violation

@@ -1,0 +1,108 @@
+groups:
+  # Every OTel SDK stamps these on the resource of every signal it emits
+  # (service identity + SDK identity). They're not part of orders.checkout
+  # itself, but without declaring them here, live-check reports them as
+  # "does not exist in the registry" violations on every single sample —
+  # a real gotcha when hand-rolling a small custom registry instead of
+  # building on an existing one that already covers resource attributes.
+  - id: registry.orders.resource
+    type: attribute_group
+    display_name: Orders Service Resource Attributes
+    brief: Standard resource attributes present on every signal from the orders service.
+    attributes:
+      - ref: service.name
+        requirement_level: required
+      - ref: service.instance.id
+        requirement_level: recommended
+      - ref: telemetry.sdk.name
+        requirement_level: recommended
+      - ref: telemetry.sdk.language
+        requirement_level: recommended
+      - ref: telemetry.sdk.version
+        requirement_level: recommended
+
+  - id: registry.orders
+    type: attribute_group
+    display_name: Orders Attributes
+    brief: Attributes describing an order in the orders demo service.
+    attributes:
+      - id: order.id
+        type: string
+        stability: stable
+        brief: Unique identifier of the order.
+        examples: ["ord_8f3e1c"]
+      - id: order.total
+        type: double
+        stability: stable
+        brief: Total order amount, in the currency given by order.currency.
+        examples: [42.50]
+      - id: order.currency
+        type:
+          members:
+            - {id: usd, value: USD, stability: stable}
+            - {id: eur, value: EUR, stability: stable}
+            - {id: gbp, value: GBP, stability: stable}
+            - {id: jpy, value: JPY, stability: stable}
+            - {id: cad, value: CAD, stability: stable}
+        stability: stable
+        brief: ISO 4217 currency code the order total is denominated in.
+        examples: ["USD", "EUR"]
+      - id: order.payment_method
+        type:
+          members:
+            - id: credit_card
+              value: credit_card
+              stability: stable
+            - id: paypal
+              value: paypal
+              stability: stable
+            - id: gift_card
+              value: gift_card
+              stability: stable
+        stability: stable
+        brief: Payment method used to pay for the order.
+        examples: ["credit_card"]
+      - id: order.item_count
+        type: int
+        stability: development
+        brief: Number of line items in the order. Recently added; not yet stable.
+        examples: [3]
+
+  - id: orders.checkout
+    type: span
+    span_kind: internal
+    stability: stable
+    brief: Represents processing a single order checkout.
+    attributes:
+      - ref: order.id
+        requirement_level: required
+      - ref: order.total
+        requirement_level: required
+      - ref: order.currency
+        requirement_level: required
+      - ref: order.payment_method
+        requirement_level: recommended
+      - ref: order.item_count
+        requirement_level: recommended
+
+  - id: metric.orders.checkout.count
+    type: metric
+    metric_name: orders.checkout.count
+    stability: stable
+    brief: Number of order checkouts processed.
+    instrument: counter
+    unit: "{checkout}"
+    attributes:
+      - ref: order.currency
+        requirement_level: required
+
+  - id: event.orders.checkout.failed
+    type: event
+    name: orders.checkout.failed
+    stability: stable
+    brief: An order checkout failed.
+    attributes:
+      - ref: order.id
+        requirement_level: required
+      - ref: error.type
+        requirement_level: required

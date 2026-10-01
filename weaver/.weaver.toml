@@ -1,0 +1,11 @@
+# Lets `weaver` commands run from this directory without needing -r each time,
+# e.g. `weaver registry check` instead of `weaver registry check -r model`.
+[registry]
+path = "model"
+
+# Custom live-check advice: enum values and span names must match the registry
+# (see policies/orders.rego). Paths resolve relative to where weaver is run,
+# so run it from this directory.
+[live-check]
+advice_policies = "policies"
+advice_data = "policies/data/**/*.json"
