@@ -1,0 +1,14 @@
+{%- import 'macros.j2' as span_macros -%}
+# DO NOT EDIT, this is an auto-generated file
+from typing import Final
+
+{% for root_ns in ctx %}
+    {% for span in root_ns.spans %}
+{{ [span.brief, span_macros.examples(span)] | comment }}
+#
+# Kind: {{ span.span_kind }}
+# Status: {{ span.stability | capitalize }}
+{{ span.id | screaming_snake_case }}: Final[str] = "{{ span.id }}"
+
+    {% endfor %}
+{% endfor %}

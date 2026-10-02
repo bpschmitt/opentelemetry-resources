@@ -1,0 +1,14 @@
+{%- import 'macros.j2' as attr_macros -%}
+# DO NOT EDIT, this is an auto-generated file
+from typing import Final
+
+{% for root_ns in ctx %}
+    {% for attr in root_ns.attributes | rejectattr("name", "in", params.excluded_attributes) %}
+{{ [attr.brief, concat_if("\n\nNotes\n-----\n", attr.note), attr_macros.examples(attr)] | comment }}
+    {% if attr is deprecated %}
+# Deprecated: {{ attr.deprecated | replace('\n', ' ') | trim }}
+    {% endif %}
+{{ attr.name | screaming_snake_case }}: Final[str] = "{{ attr.name }}"
+
+    {% endfor %}
+{% endfor %}

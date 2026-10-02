@@ -10,6 +10,9 @@ import uuid
 from opentelemetry._logs import SeverityNumber
 from opentelemetry.trace import Status, StatusCode
 
+from generated.attributes import ORDER_CURRENCY, ORDER_ID, ORDER_ITEM_COUNT, ORDER_PAYMENT_METHOD, ORDER_TOTAL
+from generated.events import ORDERS_CHECKOUT_FAILED
+from generated.spans import ORDERS_CHECKOUT
 from telemetry import Telemetry
 
 CURRENCIES = ["USD", "EUR", "GBP", "JPY", "CAD"]
@@ -40,29 +43,29 @@ def _order() -> dict:
 
 def emit_order(t: Telemetry, violation: str | None = None, simulate_work: bool = True) -> None:
     o = _order()
-    span_name = "orders.checkout"
+    span_name = ORDERS_CHECKOUT
     attrs = {
-        "order.id": o["id"],
-        "order.total": o["total"],
-        "order.currency": o["currency"],
-        "order.payment_method": o["payment_method"],
-        "order.item_count": o["item_count"],
+        ORDER_ID: o["id"],
+        ORDER_TOTAL: o["total"],
+        ORDER_CURRENCY: o["currency"],
+        ORDER_PAYMENT_METHOD: o["payment_method"],
+        ORDER_ITEM_COUNT: o["item_count"],
     }
     metric_currency = o["currency"]
 
     if violation == "total_as_string":
-        attrs["order.total"] = str(o["total"])
+        attrs[ORDER_TOTAL] = str(o["total"])
     elif violation == "missing_order_id":
-        del attrs["order.id"]
+        del attrs[ORDER_ID]
     elif violation == "stray_attribute":
-        attrs["orderId"] = o["id"]
+        attrs["orderId"] = o["id"]  # not in the registry, by design
     elif violation == "invalid_currency":
-        attrs["order.currency"] = o["currency"].lower()
+        attrs[ORDER_CURRENCY] = o["currency"].lower()
         metric_currency = o["currency"].lower()
     elif violation == "unknown_span_name":
-        span_name = "order.checkout"
+        span_name = "order.checkout"  # not in the registry, by design
     elif violation == "bad_payment_method":
-        attrs["order.payment_method"] = "bitcoin"
+        attrs[ORDER_PAYMENT_METHOD] = "bitcoin"
     elif violation == "metric_currency_int":
         metric_currency = 840
 
@@ -75,13 +78,13 @@ def emit_order(t: Telemetry, violation: str | None = None, simulate_work: bool =
             span.set_status(Status(StatusCode.ERROR, err))
             log_attrs = {"error.type": err}
             if violation != "missing_order_id":
-                log_attrs["order.id"] = o["id"]
+                log_attrs[ORDER_ID] = o["id"]
             t.logger.emit(
-                event_name="orders.checkout.failed",
+                event_name=ORDERS_CHECKOUT_FAILED,
                 severity_number=SeverityNumber.ERROR,
                 severity_text="ERROR",
                 body=f"checkout failed: {err}",
                 attributes=log_attrs,
             )
 
-    t.checkout_counter.add(1, {"order.currency": metric_currency})
+    t.checkout_counter.add(1, {ORDER_CURRENCY: metric_currency})

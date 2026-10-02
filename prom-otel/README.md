@@ -16,6 +16,11 @@ adapter), and that the result is queryable from Grafana.
   which is default-on since Prometheus 3.x (this stack uses `prom/prometheus:latest`,
   currently 3.14.0).
 - Grafana comes with the Prometheus datasource pre-provisioned.
+- Collector's `prometheus` receiver scrapes CoreDNS's own metrics endpoint
+  (`kube-dns.kube-system.svc.cluster.local:9153`), including the
+  `coredns_dns_request_duration_seconds` histogram, feeding the same
+  pipelines as `hostmetrics` — proving the stack handles scraped
+  Prometheus-format metrics (not just OTLP-native ones) the same way.
 
 ## Apply
 

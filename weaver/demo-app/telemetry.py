@@ -21,6 +21,9 @@ from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
+from generated.attributes import SERVICE_INSTANCE_ID, SERVICE_NAME
+from generated.metrics import ORDERS_CHECKOUT_COUNT
+
 NR_OTLP_ENDPOINT = "https://otlp.nr-data.net:4317"
 SCOPE = "orders"
 
@@ -52,8 +55,8 @@ def _exporter_kwargs() -> dict:
 def setup(service_name: str, export_interval_ms: int = 5000) -> Telemetry:
     resource = Resource.create(
         {
-            "service.name": service_name,
-            "service.instance.id": os.environ.get("HOSTNAME", "local"),
+            SERVICE_NAME: service_name,
+            SERVICE_INSTANCE_ID: os.environ.get("HOSTNAME", "local"),
         }
     )
     kwargs = _exporter_kwargs()
@@ -74,7 +77,7 @@ def setup(service_name: str, export_interval_ms: int = 5000) -> Telemetry:
     logger_provider.add_log_record_processor(BatchLogRecordProcessor(OTLPLogExporter(**kwargs)))
 
     counter = meter_provider.get_meter(SCOPE).create_counter(
-        "orders.checkout.count",
+        ORDERS_CHECKOUT_COUNT,
         unit="{checkout}",
         description="Number of order checkouts processed.",
     )

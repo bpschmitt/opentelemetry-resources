@@ -36,6 +36,20 @@ The scorecard then measures the same rules continuously on production-shaped tel
 | `ORDERS_PER_SEC` | `2` | Average order rate. |
 | `NONCOMPLIANT_RATIO` | `0.15` | Share of orders with a violation. |
 
+## Generating constants from the registry
+
+`scenarios.py`, `telemetry.py`, and `app.py` import attribute/metric/span/event names as typed constants from `generated/`, instead of hardcoding string literals. [templates/python/](./templates/python) is the Weaver codegen target that produces them — modeled on the Rust templates in [opentelemetry-weaver-examples](https://github.com/open-telemetry/opentelemetry-weaver-examples/tree/main/basic/templates/registry/rust), adapted for Python (`#` comments, `NAME: Final[str] = "..."`).
+
+`generated/` is checked in (not gitignored) because the app imports from it at runtime — Docker and a fresh clone both need it present without requiring weaver to be installed. Regenerate it whenever `model/orders.yaml` changes, from `weaver/` (so `.weaver.toml` resolves the registry):
+
+```
+weaver registry generate --templates demo-app/templates python demo-app/generated
+```
+
+This produces `demo-app/generated/attributes.py`, `metrics.py`, `spans.py`, and `events.py`, each a flat module of `SCREAMING_SNAKE_CASE` constants with the registry's `brief`/`note`/`examples` as docstring comments — e.g. `attributes.ORDER_ID == "order.id"`.
+
+The handful of **deliberately wrong** values in `scenarios.py` (`"orderId"`, `"order.checkout"`) stay as plain string literals — they're not in the registry by design, so there's no constant for them to reference.
+
 ## Run
 
 Install deps (from `weaver/`): `.venv/bin/pip install -r demo-app/requirements.txt`

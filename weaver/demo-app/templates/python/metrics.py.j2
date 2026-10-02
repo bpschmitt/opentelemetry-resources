@@ -1,0 +1,18 @@
+{%- import 'macros.j2' as metric_macros -%}
+# DO NOT EDIT, this is an auto-generated file
+from typing import Final
+
+{% for root_ns in ctx %}
+    {% for metric in root_ns.metrics %}
+{{ [metric.brief, concat_if("\n\nNotes\n-----\n", metric.note), metric_macros.examples(metric)] | comment }}
+#
+# Instrument: {{ metric.instrument }}
+# Unit: {{ metric.unit }}
+# Status: {{ metric.stability | capitalize }}
+        {% if metric is deprecated %}
+# Deprecated: {{ metric.deprecated | replace('\n', ' ') | trim }}
+        {% endif %}
+{{ metric.metric_name | screaming_snake_case }}: Final[str] = "{{ metric.metric_name }}"
+
+    {% endfor %}
+{% endfor %}

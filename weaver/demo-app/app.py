@@ -16,6 +16,8 @@ import time
 
 import scenarios
 import telemetry
+from generated.attributes import ORDER_ID
+from generated.events import ORDERS_CHECKOUT_FAILED
 
 log = logging.getLogger("orders-demo")
 
@@ -69,9 +71,9 @@ def run_live_check(compliant_only: bool) -> None:
             log.info("sending non-compliant sample: %s", violation)
             scenarios.emit_order(t, violation, simulate_work=False)
     t.logger.emit(
-        event_name="orders.checkout.failed",
+        event_name=ORDERS_CHECKOUT_FAILED,
         body="sample failure",
-        attributes={"order.id": "ord_sample", "error.type": "timeout"},
+        attributes={ORDER_ID: "ord_sample", "error.type": "timeout"},
     )
     t.flush_and_shutdown()
 

@@ -1,0 +1,14 @@
+{%- import 'macros.j2' as event_macros -%}
+# DO NOT EDIT, this is an auto-generated file
+from typing import Final
+
+{% for root_ns in ctx %}
+    {% for event in root_ns.events %}
+{{ [event.brief, concat_if("\n\nNotes\n-----\n", event.note), event_macros.examples(event)] | comment }}
+    {% if event is deprecated %}
+# Deprecated: {{ event.deprecated | replace('\n', ' ') | trim }}
+    {% endif %}
+{{ event.name | screaming_snake_case }}: Final[str] = "{{ event.name }}"
+
+    {% endfor %}
+{% endfor %}
